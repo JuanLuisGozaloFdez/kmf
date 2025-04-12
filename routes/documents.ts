@@ -101,6 +101,34 @@ router.get('/templates/:documentType', (req, res) => {
   res.json(template);
 });
 
+// GET /documents - Retrieves a list of documents
+router.get('/documents', async (req, res) => {
+  try {
+    // Extract query parameters for filtering
+    const docIds = req.query.docIds ? (req.query.docIds as string).split(',') : [];
+
+    // TODO: Implement logic to retrieve documents based on the specified docIds
+    // For now, returning a placeholder response
+    const documents = docIds.map((id) => ({
+      id,
+      title: `Document ${id}`,
+      properties: {
+        documentType: 'exampleType',
+        documentTitle: `Title for ${id}`,
+        issueDate: '2025-01-01',
+        expiryDate: '2026-01-01',
+        tagList: ['example', 'sample']
+      },
+      attachments: [`/documents/${id}/attachments/attachment1`]
+    }));
+
+    res.status(200).json({ documents });
+  } catch (error) {
+    console.error('Error retrieving documents:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
 // POST /documents - Create a new document
 router.post('/documents', upload.fields([
   { name: 'content', maxCount: 1 },
