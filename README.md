@@ -1,129 +1,185 @@
-# KMF API Documentation
+# Documents API
 
-## Overview
-KMF provides a robust set of APIs for managing documents, attachments, transactions, and entitlements. The APIs are organized into groups for streamlined functionality.
+The Documents API allows authorized users to upload, view and share supply chain documents, such as facility certificates and audit reports, along with their related properties and attachments.
 
-## Base Path
-All API endpoints are prefixed with:
+## Base URL
 
----
+All API endpoints are prefixed with: `/kmf/api/documents/v1`
+
+## Document Types and Properties
+
+A document definition consists of:
+- Document properties
+- Content file (PDF, text, PNG, JPEG or GIF format)
+- Optional file attachments
+
+### Available Document Types
+
+- Generic Document
+- Generic Certificate  
+- GAA BAP Certificate
+
+Use `GET /categories` to view all available document types and `GET /templates/{documentType}` to view required properties for a specific type.
+
+## Document Linking
+
+Documents can be linked to:
+
+### Traceable Elements (Only one type allowed)
+- Facilities (via `locationGLNList`)
+- Products (via `productList`) 
+- Organizations (via `organizationList`)
+- EPCs (via `epcList`)
+
+### Additional Links
+- EPCIS events (via `eventIDList`)
+- Business transactions (via `transactionIDList`)
+
+## Document Sharing
+
+### Default Access
+Documents are created with `private` entitlement by default, viewable only by the owning organization.
+
+### Sharing Methods
+
+1. **Linked Documents**
+   - Set `entitlementMode` to `linked`
+   - Organizations with access to associated elements can view the document
+   - Only evaluates: `locationGLNList`, `productList`, `organizationList`, `epcList`
+
+2. **Explicit Sharing**
+   - Use `entitledOrgIds` to specify organizations
+   - Works for both `private` and `linked` documents
 
 ## API Endpoints
 
 ### Documents
 
+#### `POST /documents`
+Creates a new document with properties, content, and entitlement information.
+- Request: `multipart/form-data`
+- Parts:
+  - `properties` (required): JSON document properties
+  - `content`: File upload (max 20MB)
+  - `entitlement`: JSON entitlement info
+- Responses: 201 (Created), 202 (Accepted)
 
-### **Document Content Management**
+#### `GET /documents`
+Retrieves information about multiple documents.
+- Query Parameters:
+  - `docIds[]`: Array of document IDs to retrieve
+- Returns: Array of document information including properties and attachment references
+- Use `GET /documents/{docId}/content` to download actual document contents
 
-- **`GET /documents/{docId}/content`**
-  - Retrieves the content of a specified document.
-  - Handles `404` if the document content is not found.
+#### `GET /documents/{docId}`
+Retrieves document information and metadata.
 
-- **`PUT /documents/{docId}/content`**
-  - Updates the content of a specified document.
-  - Validates uploaded file types and returns relevant error codes:
-    - `400` for missing files.
-    - `415` for unsupported media types.
-  - Handles `404` if the document is not found.
+#### `PUT /documents/{docId}`
+Updates document properties, content, and entitlement.
+- Supports both `application/json` and `multipart/form-data`
 
----
+#### `DELETE /documents/{docId}`
+Permanently deletes a document.
 
-### **Document Entitlement Management**
+### Document Content
 
-- **`GET /documents/{docId}/entitlement`**
-  - Retrieves the entitlement information associated with a document.
-  - Handles `404` if the document is not found.
+#### `GET /documents/{docId}/content`
+Downloads document content file.
 
-- **`PUT /documents/{docId}/entitlement`**
-  - Updates the entitlement information for a document.
-  - Validates entitlement properties and returns:
-    - `400` for validation errors.
-    - `404` if the document is not found.
+#### `PUT /documents/{docId}/content`
+Updates document content file.
+- Max file size: 20MB
+- Supported formats: PDF, text, PNG, JPEG, GIF
 
----
+### Entitlements
 
-### **Attachment Management**
+#### `GET /documents/{docId}/entitlement`
+Retrieves document sharing settings.
 
-- **`POST /documents/{docId}/attachments`**
-  - Adds a new attachment to a document.
-  - Returns:
-    - `400` for missing files.
-    - `201` upon successful creation with a correlation ID.
+#### `PUT /documents/{docId}/entitlement`
+Updates document sharing settings.
+- Modes: `private`, `linked`
+- Optional: `entitledOrgIds`
 
-- **`GET /documents/{docId}/attachments/{attachmentId}`**
-  - Retrieves a specific attachment by its ID.
-  - Handles `404` if the attachment is not found.
+### Attachments
 
-- **`PUT /documents/{docId}/attachments/{attachmentId}`**
-  - Updates an existing attachment.
-  - Returns:
-    - `400` for missing files.
-    - `404` if the attachment is not found.
+#### `POST /documents/{docId}/attachments`
+Adds new attachment to document.
+- Max file size: 20MB
+- Supported formats: PDF, text, PNG, JPEG, GIF
 
-- **`DELETE /documents/{docId}/attachments/{attachmentId}`**
-  - Deletes a specific attachment.
-  - Handles `404` if the attachment is not found.
+#### `GET /documents/{docId}/attachments/{attachmentId}`
+Downloads specific attachment.
 
----
+#### `PUT /documents/{docId}/attachments/{attachmentId}`
+Updates existing attachment.
 
-### **Document Creation and Validation**
+#### `DELETE /documents/{docId}/attachments/{attachmentId}`
+Removes attachment from document.
 
-- **`POST /documents`**
-  - Creates a new document with the following steps:
-    - Validates document properties and entitlements.
-    - Handles file uploads and validates file types.
-    - Generates a correlation ID for asynchronous processing.
-  - Returns:
-    - `201` for successful creation.
-    - `202` if the creation is in progress.
-    - Error codes for validation issues:
-      - `400` for missing fields or invalid data.
-      - `413` for file size limits.
-      - `415` for unsupported media types.
+### Search
 
----
+#### `POST /documents/search`
+Searches documents using multiple criteria:
+- Organization IDs
+- Timestamps
+- Categories
+- Document properties
+- Associated elements
 
-### **Transaction Management**
+### Categories & Templates
 
-- **`GET /transactions`**
-  - Retrieves the status of transactions by their correlation IDs.
-  - Requires `correlationIds[]` as a query parameter.
-  - Returns:
-    - `400` if the `correlationIds[]` parameter is missing.
-    - `200` with transaction statuses.
+#### `GET /categories`
+Lists all available document categories.
 
----
+#### `GET /templates/{documentType}`
+Retrieves template for specific document type.
 
-## Error Handling
-The APIs include robust error handling for:
+### Transactions
 
-- `400` - Bad Request: For missing or invalid fields.
-- `404` - Not Found: For non-existent resources.
-- `413` - Payload Too Large: For exceeding file size limits.
-- `415` - Unsupported Media Type: For invalid file types.
-- `500` - Internal Server Error: For unexpnpm run startected server errors.
+#### `GET /transactions`
+Checks status of asynchronous operations using correlation IDs.
 
----
+## File Size Limits
 
-## Running the Project
-1. Clone the repository.
-2. Install dependencies:
-   ```bash
-   npm install
-3. Start the server
-   ```bash
-   npm run start
-4. Access APIs at
-   http://localhost:3000/kmf/api/documents/v1
+- Document properties (JSON): 20KB
+- Content files: 20MB
+- Attachments: 20MB
 
-## Development
-- Language: TypeScript
-- Framework: Express.js
+## Error Responses
 
-## Future Enhancements
-- Full implementation of storage and retrieval logic for documents, attachments, and transactions.
-- Detailed logging and monitoring for API usage.
+- 400: Bad Request
+- 401: Unauthorized
+- 403: Forbidden
+- 404: Not Found
+- 410: Gone
+- 413: Payload Too Large
+- 415: Unsupported Media Type
+- 500: Internal Server Error
 
-For more details, refer to the source code:
-- Documents Routes
-- Server Setup
+## Custom Properties
+
+Custom properties must be specified in an array using the `customProperties` field:
+
+```json
+{
+  "customProperties": [
+    {
+      "name": "Age",
+      "value": 5
+    },
+    {
+      "name": "Related product",
+      "value": "95011015300038",
+      "format": "gtin"
+    }
+  ]
+}
+```
+
+Supported formats:
+- `date`: ISO 8601 (YYYY-MM-DD)
+- `date-time`: ISO 8601 (YYYY-MM-DDThh:mm:ss.mmmZ)
+- `gln`: GS1 GLN or IBM location ID
+- `gtin`: GS1 GTIN or IBM product ID
+- `uri`: Full URI/URL
