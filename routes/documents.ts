@@ -101,28 +101,38 @@ router.get('/templates/:documentType', (req, res) => {
   res.json(template);
 });
 
-// GET /documents - Retrieves a list of documents
+// GET /documents - Retrieve a list of documents
 router.get('/documents', async (req, res) => {
   try {
-    // Extract query parameters for filtering
-    const docIds = req.query.docIds ? (req.query.docIds as string).split(',') : [];
+    const docIds = req.query['docIds[]'] as string[];
+    
+    if (!docIds || !Array.isArray(docIds)) {
+      return res.status(400).json({ 
+        error: 'docIds[] parameter is required and must be an array' 
+      });
+    }
 
-    // TODO: Implement logic to retrieve documents based on the specified docIds
-    // For now, returning a placeholder response
-    const documents = docIds.map((id) => ({
+    // TODO: Implement actual document retrieval
+    // For demonstration, return mock documents
+    const documents = docIds.map(id => ({
       id,
-      title: `Document ${id}`,
+      type: 'Generic Document',
       properties: {
-        documentType: 'exampleType',
-        documentTitle: `Title for ${id}`,
-        issueDate: '2025-01-01',
-        expiryDate: '2026-01-01',
-        tagList: ['example', 'sample']
+        documentType: 'Generic Document',
+        documentTitle: `Document ${id}`,
+        issueDate: new Date().toISOString().split('T')[0]
       },
-      attachments: [`/documents/${id}/attachments/attachment1`]
+      contentFile: '',
+      associations: {},
+      entitlement: { mode: 'private' },
+      version: 1,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+      createdBy: 'user-id',
+      organizationId: 'org-id'
     }));
 
-    res.status(200).json({ documents });
+    res.json({ documents });
   } catch (error) {
     console.error('Error retrieving documents:', error);
     res.status(500).json({ error: 'Internal server error' });
