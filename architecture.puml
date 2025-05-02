@@ -1,4 +1,4 @@
-@startuml
+@startuml KMF Architecture Diagram
 
 !define RECTANGLE_COLOR #ADD8E6
 
