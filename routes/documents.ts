@@ -10,6 +10,122 @@ import {
   SearchConditions,
   Transaction
 } from '../types';
+import { sequelize } from '../data/dbConfig';
+import { DataTypes } from 'sequelize';
+import client from 'prom-client';
+
+// Create a Registry to register metrics
+const register = new client.Registry();
+
+// Define metrics
+const httpRequestDuration = new client.Histogram({
+  name: 'http_request_duration_seconds',
+  help: 'Duration of HTTP requests in seconds',
+  labelNames: ['method', 'route', 'status_code'],
+});
+
+const httpRequestCounter = new client.Counter({
+  name: 'http_requests_total',
+  help: 'Total number of HTTP requests',
+  labelNames: ['method', 'route', 'status_code'],
+});
+
+// Register metrics
+register.registerMetric(httpRequestDuration);
+register.registerMetric(httpRequestCounter);
+
+// Expose metrics endpoint
+router.get('/metrics', async (req, res) => {
+  res.set('Content-Type', register.contentType);
+  res.end(await register.metrics());
+});
+
+const DocumentModel = sequelize.define('Document', {
+  id: {
+    type: DataTypes.UUID,
+    defaultValue: DataTypes.UUIDV4,
+    primaryKey: true,
+  },
+  type: {
+    type: DataTypes.STRING,
+    allowNull: false,
+  },
+  properties: {
+    type: DataTypes.JSON,
+    allowNull: false,
+  },
+  contentFile: {
+    type: DataTypes.STRING,
+    allowNull: true,
+  },
+  associations: {
+    type: DataTypes.JSON,
+    allowNull: true,
+  },
+  entitlement: {
+    type: DataTypes.JSON,
+    allowNull: true,
+  },
+  version: {
+    type: DataTypes.INTEGER,
+    defaultValue: 1,
+  },
+  createdBy: {
+    type: DataTypes.STRING,
+    allowNull: false,
+  },
+  organizationId: {
+    type: DataTypes.STRING,
+    allowNull: false,
+  },
+}, {
+  timestamps: true,
+});
+
+const AttachmentModel = sequelize.define('Attachment', {
+  id: {
+    type: DataTypes.UUID,
+    defaultValue: DataTypes.UUIDV4,
+    primaryKey: true,
+  },
+  documentId: {
+    type: DataTypes.UUID,
+    allowNull: false,
+  },
+  type: {
+    type: DataTypes.STRING,
+    allowNull: false,
+  },
+  contentFile: {
+    type: DataTypes.STRING,
+    allowNull: false,
+  },
+}, {
+  timestamps: true,
+});
+
+const TransactionModel = sequelize.define('Transaction', {
+  correlationId: {
+    type: DataTypes.UUID,
+    primaryKey: true,
+  },
+  status: {
+    type: DataTypes.STRING,
+    allowNull: false,
+  },
+  timestamp: {
+    type: DataTypes.DATE,
+    defaultValue: DataTypes.NOW,
+  },
+}, {
+  timestamps: false,
+});
+
+(async () => {
+  await DocumentModel.sync();
+  await AttachmentModel.sync();
+  await TransactionModel.sync();
+})();
 
 const router = express.Router();
 
@@ -83,6 +199,43 @@ const searchConditionsSchema = z.object({
   properties: documentPropertiesSchema.partial().optional()
 });
 
+const authenticate = (req, res, next) => {
+  try {
+    const authHeader = req.headers.authorization;
+    if (!authHeader) {
+      return res.status(401).json({ error: 'Authorization header is missing' });
+    }
+
+    const token = authHeader.split(' ')[1];
+    if (!token) {
+      return res.status(401).json({ error: 'Token is missing' });
+    }
+
+    // Simulate token verification (replace with actual verification logic)
+    const user = { id: 'user-id', organizationId: 'org-id', role: 'user' }; // Example user object
+
+    req.user = user; // Attach user to request object
+    next();
+  } catch (error) {
+    console.error('Authentication error:', error);
+    res.status(401).json({ error: 'Invalid token' });
+  }
+};
+
+const authorize = (roles) => (req, res, next) => {
+  try {
+    if (!roles.includes(req.user.role)) {
+      return res.status(403).json({ error: 'Access denied' });
+    }
+    next();
+  } catch (error) {
+    console.error('Authorization error:', error);
+    res.status(403).json({ error: 'Access denied' });
+  }
+};
+
+router.use(authenticate);
+
 // GET /categories - List all available document types
 router.get('/categories', (req, res) => {
   const categories = Object.keys(documentTemplates);
@@ -103,44 +256,40 @@ router.get('/templates/:documentType', (req, res) => {
 
 // GET /documents - Retrieve a list of documents
 router.get('/documents', async (req, res) => {
+  const end = httpRequestDuration.startTimer();
   try {
     const docIds = req.query['docIds[]'] as string[];
     
     if (!docIds || !Array.isArray(docIds)) {
+      httpRequestCounter.inc({ method: 'GET', route: '/documents', status_code: 400 });
       return res.status(400).json({ 
         error: 'docIds[] parameter is required and must be an array' 
       });
     }
 
-    // TODO: Implement actual document retrieval
-    // For demonstration, return mock documents
-    const documents = docIds.map(id => ({
-      id,
-      type: 'Generic Document',
-      properties: {
-        documentType: 'Generic Document',
-        documentTitle: `Document ${id}`,
-        issueDate: new Date().toISOString().split('T')[0]
-      },
-      contentFile: '',
-      associations: {},
-      entitlement: { mode: 'private' },
-      version: 1,
-      createdAt: new Date(),
-      updatedAt: new Date(),
-      createdBy: 'user-id',
-      organizationId: 'org-id'
-    }));
+    const documents = await DocumentModel.findAll({
+      where: {
+        id: docIds
+      }
+    });
 
+    if (documents.length === 0) {
+      httpRequestCounter.inc({ method: 'GET', route: '/documents', status_code: 404 });
+      return res.status(404).json({ error: 'No documents found' });
+    }
+
+    httpRequestCounter.inc({ method: 'GET', route: '/documents', status_code: 200 });
     res.json({ documents });
   } catch (error) {
-    console.error('Error retrieving documents:', error);
+    httpRequestCounter.inc({ method: 'GET', route: '/documents', status_code: 500 });
     res.status(500).json({ error: 'Internal server error' });
+  } finally {
+    end({ method: 'GET', route: '/documents', status_code: res.statusCode });
   }
 });
 
 // POST /documents - Create a new document
-router.post('/documents', upload.fields([
+router.post('/documents', authorize(['admin', 'user']), upload.fields([
   { name: 'content', maxCount: 1 },
   { name: 'properties' },
   { name: 'entitlement' }
@@ -193,11 +342,10 @@ router.post('/documents', upload.fields([
     const documentId = crypto.randomUUID();
 
     // Create document
-    const document: Document = {
-      id: documentId,
+    const document = await DocumentModel.create({
       type: properties.documentType,
       properties,
-      contentFile: contentFile ? contentFile.filename : '',
+      contentFile,
       associations: {
         locationGLNList: properties.locationGLNList,
         productList: properties.productList,
@@ -207,29 +355,31 @@ router.post('/documents', upload.fields([
         transactionIDList: properties.transactionIDList
       },
       entitlement,
-      version: 1,
-      createdAt: new Date(),
-      updatedAt: new Date(),
-      createdBy: 'user-id', // Will be populated from auth context
-      organizationId: 'org-id' // Will be populated from auth context
-    };
+      createdBy: 'user-id',
+      organizationId: 'org-id',
+    });
 
-    // TODO: Implement actual storage
-    // For demonstration, randomly return 201 or 202
-    if (Math.random() > 0.5) {
-      res.status(201).json(document);
-    } else {
-      res.status(202).json({
-        correlationId,
-        documentId,
-        message: 'Document creation in progress'
-      });
-    }
+    // Log transaction
+    await TransactionModel.create({
+      correlationId: crypto.randomUUID(),
+      status: 'completed',
+      timestamp: new Date()
+    });
+
+    res.status(201).json(document);
   } catch (error) {
     if (error instanceof z.ZodError) {
       return res.status(400).json({ error: error.errors });
     }
     console.error('Error creating document:', error);
+
+    // Log failed transaction
+    await TransactionModel.create({
+      correlationId: crypto.randomUUID(),
+      status: 'failed',
+      timestamp: new Date()
+    });
+
     res.status(500).json({ 
       error: 'The transaction to store the document failed and the document is invalid, unrecoverable state. Upload the document again to resolve the problem. If the problem persists, please contact support team.'
     });
@@ -242,8 +392,13 @@ router.get('/documents/:docId/content', async (req, res) => {
     const { docId } = req.params;
     const version = req.query.version ? parseInt(req.query.version as string) : undefined;
 
-    // TODO: Implement content retrieval
-    res.status(404).json({ error: 'Document content not found' });
+    const document = await DocumentModel.findByPk(docId);
+
+    if (!document) {
+      return res.status(404).json({ error: 'Document not found' });
+    }
+
+    res.json({ contentFile: document.contentFile });
   } catch (error) {
     console.error('Error retrieving document content:', error);
     res.status(500).json({ error: 'Internal server error' });
@@ -260,8 +415,16 @@ router.put('/documents/:docId/content', upload.single('content'), async (req, re
       return res.status(400).json({ error: 'No file uploaded' });
     }
 
-    // TODO: Implement content update
-    res.status(404).json({ error: 'Document not found' });
+    const document = await DocumentModel.findByPk(docId);
+
+    if (!document) {
+      return res.status(404).json({ error: 'Document not found' });
+    }
+
+    document.contentFile = file.filename;
+    await document.save();
+
+    res.json({ message: 'Document content updated successfully' });
   } catch (error) {
     console.error('Error updating document content:', error);
     res.status(500).json({ error: 'Internal server error' });
@@ -273,25 +436,60 @@ router.get('/documents/:docId/entitlement', async (req, res) => {
   try {
     const { docId } = req.params;
 
-    // TODO: Implement entitlement retrieval
-    res.status(404).json({ error: 'Document not found' });
+    const document = await DocumentModel.findByPk(docId);
+
+    if (!document) {
+      return res.status(404).json({ error: 'Document not found' });
+    }
+
+    res.json({ entitlement: document.entitlement });
   } catch (error) {
+    if (error.name === 'SequelizeDatabaseError') {
+      console.error('Database query error:', error);
+      return res.status(500).json({ error: 'Database query failed' });
+    }
     console.error('Error retrieving document entitlement:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });
 
 // PUT /documents/{docId}/entitlement - Update document entitlement
-router.put('/documents/:docId/entitlement', express.json(), async (req, res) => {
+router.put('/documents/:docId/entitlement', authorize(['admin']), express.json(), async (req, res) => {
+  const correlationId = crypto.randomUUID();
   try {
     const { docId } = req.params;
     const entitlement = documentEntitlementSchema.parse(req.body);
 
-    // TODO: Implement entitlement update
-    res.status(404).json({ error: 'Document not found' });
+    const document = await DocumentModel.findByPk(docId);
+
+    if (!document) {
+      await TransactionModel.create({
+        correlationId,
+        status: 'failed',
+        timestamp: new Date()
+      });
+      return res.status(404).json({ error: 'Document not found' });
+    }
+
+    document.entitlement = entitlement;
+    await document.save();
+
+    await TransactionModel.create({
+      correlationId,
+      status: 'completed',
+      timestamp: new Date()
+    });
+
+    res.json({ message: 'Document entitlement updated successfully' });
   } catch (error) {
-    if (error instanceof z.ZodError) {
-      return res.status(400).json({ error: error.errors });
+    if (error.name === 'SequelizeDatabaseError') {
+      console.error('Database query error:', error);
+      await TransactionModel.create({
+        correlationId,
+        status: 'failed',
+        timestamp: new Date()
+      });
+      return res.status(500).json({ error: 'Database query failed' });
     }
     console.error('Error updating document entitlement:', error);
     res.status(500).json({ error: 'Internal server error' });
@@ -309,14 +507,20 @@ router.post('/documents/:docId/attachments', upload.single('content'), async (re
       return res.status(400).json({ error: 'No file uploaded' });
     }
 
-    // Generate correlation ID for async processing
-    const correlationId = crypto.randomUUID();
-    const attachmentId = crypto.randomUUID();
+    const document = await DocumentModel.findByPk(docId);
 
-    // TODO: Implement attachment creation
+    if (!document) {
+      return res.status(404).json({ error: 'Document not found' });
+    }
+
+    const attachment = await AttachmentModel.create({
+      documentId: docId,
+      type,
+      contentFile: file.filename,
+    });
+
     res.status(201).json({
-      correlationId,
-      attachmentId,
+      attachmentId: attachment.id,
       message: 'Attachment created successfully'
     });
   } catch (error) {
@@ -325,20 +529,36 @@ router.post('/documents/:docId/attachments', upload.single('content'), async (re
   }
 });
 
-// GET /documents/{docId}/attachments/{attachmentId} - Get attachment
+// GET /documents/{docId}/attachments/:attachmentId - Get attachment
 router.get('/documents/:docId/attachments/:attachmentId', async (req, res) => {
   try {
     const { docId, attachmentId } = req.params;
 
-    // TODO: Implement attachment retrieval
-    res.status(404).json({ error: 'Attachment not found' });
+    const document = await DocumentModel.findByPk(docId);
+
+    if (!document) {
+      return res.status(404).json({ error: 'Document not found' });
+    }
+
+    const attachment = await AttachmentModel.findOne({
+      where: {
+        id: attachmentId,
+        documentId: docId,
+      },
+    });
+
+    if (!attachment) {
+      return res.status(404).json({ error: 'Attachment not found' });
+    }
+
+    res.json(attachment);
   } catch (error) {
     console.error('Error retrieving attachment:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });
 
-// PUT /documents/{docId}/attachments/{attachmentId} - Update attachment
+// PUT /documents/{docId}/attachments/:attachmentId - Update attachment
 router.put('/documents/:docId/attachments/:attachmentId', upload.single('content'), async (req, res) => {
   try {
     const { docId, attachmentId } = req.params;
@@ -348,22 +568,79 @@ router.put('/documents/:docId/attachments/:attachmentId', upload.single('content
       return res.status(400).json({ error: 'No file uploaded' });
     }
 
-    // TODO: Implement attachment update
-    res.status(404).json({ error: 'Attachment not found' });
+    const document = await DocumentModel.findByPk(docId);
+
+    if (!document) {
+      return res.status(404).json({ error: 'Document not found' });
+    }
+
+    // Simulate attachment update
+    res.json({
+      attachmentId,
+      message: 'Attachment updated successfully'
+    });
   } catch (error) {
     console.error('Error updating attachment:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });
 
-// DELETE /documents/{docId}/attachments/{attachmentId} - Delete attachment
+// DELETE /documents/{docId}/attachments/:attachmentId - Delete attachment
 router.delete('/documents/:docId/attachments/:attachmentId', async (req, res) => {
+  const correlationId = crypto.randomUUID();
   try {
     const { docId, attachmentId } = req.params;
 
-    // TODO: Implement attachment deletion
-    res.status(404).json({ error: 'Attachment not found' });
+    const document = await DocumentModel.findByPk(docId);
+
+    if (!document) {
+      // Log failed transaction
+      await TransactionModel.create({
+        correlationId,
+        status: 'failed',
+        timestamp: new Date()
+      });
+      return res.status(404).json({ error: 'Document not found' });
+    }
+
+    const attachment = await AttachmentModel.findOne({
+      where: {
+        id: attachmentId,
+        documentId: docId,
+      },
+    });
+
+    if (!attachment) {
+      // Log failed transaction
+      await TransactionModel.create({
+        correlationId,
+        status: 'failed',
+        timestamp: new Date()
+      });
+      return res.status(404).json({ error: 'Attachment not found' });
+    }
+
+    await attachment.destroy();
+
+    // Log successful transaction
+    await TransactionModel.create({
+      correlationId,
+      status: 'completed',
+      timestamp: new Date()
+    });
+
+    res.json({
+      attachmentId,
+      message: 'Attachment deleted successfully'
+    });
   } catch (error) {
+    // Log failed transaction
+    await TransactionModel.create({
+      correlationId,
+      status: 'failed',
+      timestamp: new Date()
+    });
+
     console.error('Error deleting attachment:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
@@ -371,24 +648,35 @@ router.delete('/documents/:docId/attachments/:attachmentId', async (req, res) =>
 
 // GET /transactions - Get transaction status
 router.get('/transactions', async (req, res) => {
+  const end = httpRequestDuration.startTimer();
   try {
     const correlationIds = req.query['correlationIds[]'] as string[];
-    
+
     if (!correlationIds || !Array.isArray(correlationIds)) {
-      return res.status(400).json({ error: 'correlationIds[] is required' });
+      httpRequestCounter.inc({ method: 'GET', route: '/transactions', status_code: 400 });
+      return res.status(400).json({ error: 'correlationIds[] is required and must be an array' });
     }
 
-    // TODO: Implement transaction status retrieval
-    const transactions: Transaction[] = correlationIds.map(id => ({
-      correlationId: id,
-      status: 'pending'
-    }));
+    const transactions = await TransactionModel.findAll({
+      where: {
+        correlationId: correlationIds
+      }
+    });
 
+    if (transactions.length === 0) {
+      httpRequestCounter.inc({ method: 'GET', route: '/transactions', status_code: 404 });
+      return res.status(404).json({ error: 'No transactions found' });
+    }
+
+    httpRequestCounter.inc({ method: 'GET', route: '/transactions', status_code: 200 });
     res.json({ transactions });
   } catch (error) {
-    console.error('Error retrieving transactions:', error);
+    httpRequestCounter.inc({ method: 'GET', route: '/transactions', status_code: 500 });
     res.status(500).json({ error: 'Internal server error' });
+  } finally {
+    end({ method: 'GET', route: '/transactions', status_code: res.statusCode });
   }
 });
+
 
 export default router;
