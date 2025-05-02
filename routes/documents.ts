@@ -13,6 +13,11 @@ import {
 import { sequelize } from '../data/dbConfig';
 import { DataTypes } from 'sequelize';
 import client from 'prom-client';
+import NodeCache from 'node-cache';
+import dotenv from 'dotenv';
+dotenv.config();
+
+const MAX_LIMIT_DOC = parseInt(process.env.MAX_LIMIT_DOC || '100', 10);
 
 // Create a Registry to register metrics
 const register = new client.Registry();
@@ -255,7 +260,27 @@ router.get('/templates/:documentType', (req, res) => {
 });
 
 // GET /documents - Retrieve a list of documents
-router.get('/documents', async (req, res) => {
+const cache = new NodeCache({ stdTTL: 300, checkperiod: 60 }); // Cache with 5-minute TTL
+
+// Middleware to check cache before querying the database
+const cacheMiddleware = (req, res, next) => {
+  const key = req.originalUrl;
+  const cachedData = cache.get(key);
+
+  if (cachedData) {
+    return res.json(cachedData);
+  }
+
+  res.sendResponse = res.json;
+  res.json = (body) => {
+    cache.set(key, body);
+    res.sendResponse(body);
+  };
+
+  next();
+};
+
+router.get('/documents', cacheMiddleware, async (req, res) => {
   const end = httpRequestDuration.startTimer();
   try {
     const docIds = req.query['docIds[]'] as string[];
@@ -267,10 +292,17 @@ router.get('/documents', async (req, res) => {
       });
     }
 
+    if (docIds.length > MAX_LIMIT_DOC) {
+      return res.status(400).json({
+        error: `The maximum number of documents that can be retrieved is ${MAX_LIMIT_DOC}`
+      });
+    }
+
     const documents = await DocumentModel.findAll({
       where: {
         id: docIds
-      }
+      },
+      attributes: ['id', 'type', 'properties', 'createdAt', 'updatedAt'], // Select only necessary fields
     });
 
     if (documents.length === 0) {

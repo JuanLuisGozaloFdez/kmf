@@ -267,4 +267,125 @@ describe('Documents API', () => {
       jest.restoreAllMocks();
     });
   });
+
+  describe('Boundary Values and Invalid Data Types', () => {
+    it('should return 400 if document title exceeds maximum length', async () => {
+      const longTitle = 'A'.repeat(256); // Assuming max length is 255
+      const response = await request(app)
+        .post('/documents')
+        .field('properties', JSON.stringify({
+          documentType: 'Generic Document',
+          documentTitle: longTitle
+        }))
+        .field('entitlement', JSON.stringify({
+          mode: 'private'
+        }));
+
+      expect(response.status).toBe(400);
+      expect(response.body).toHaveProperty('error', 'Document title exceeds maximum length');
+    });
+
+    it('should return 400 if document type is not a string', async () => {
+      const response = await request(app)
+        .post('/documents')
+        .field('properties', JSON.stringify({
+          documentType: 12345, // Invalid type
+          documentTitle: 'Test Document'
+        }))
+        .field('entitlement', JSON.stringify({
+          mode: 'private'
+        }));
+
+      expect(response.status).toBe(400);
+      expect(response.body).toHaveProperty('error', 'Invalid document type');
+    });
+
+    it('should return 400 if entitlement mode is not valid', async () => {
+      const response = await request(app)
+        .post('/documents')
+        .field('properties', JSON.stringify({
+          documentType: 'Generic Document',
+          documentTitle: 'Test Document'
+        }))
+        .field('entitlement', JSON.stringify({
+          mode: 'invalid-mode' // Invalid mode
+        }));
+
+      expect(response.status).toBe(400);
+      expect(response.body).toHaveProperty('error', 'Invalid entitlement mode');
+    });
+
+    it('should return 400 if document ID is not a valid UUID', async () => {
+      const invalidDocId = '12345'; // Not a valid UUID
+      const response = await request(app).get(`/documents/${invalidDocId}`);
+
+      expect(response.status).toBe(400);
+      expect(response.body).toHaveProperty('error', 'Invalid document ID');
+    });
+
+    it('should return 400 if attachment type is not a string', async () => {
+      const response = await request(app)
+        .post('/documents/invalid-doc-id/attachments')
+        .field('type', 12345) // Invalid type
+        .attach('content', Buffer.from('test content'), 'test.png');
+
+      expect(response.status).toBe(400);
+      expect(response.body).toHaveProperty('error', 'Invalid attachment type');
+    });
+  });
+
+  describe('Concurrent Requests, Empty Payloads, and Rate Limiting', () => {
+    it('should handle concurrent requests gracefully', async () => {
+      const requests = Array.from({ length: 10 }, (_, i) =>
+        request(app)
+          .post('/documents')
+          .field('properties', JSON.stringify({
+            documentType: 'Generic Document',
+            documentTitle: `Test Document ${i}`
+          }))
+          .field('entitlement', JSON.stringify({
+            mode: 'private'
+          }))
+      );
+
+      const responses = await Promise.all(requests);
+
+      responses.forEach((response) => {
+        expect(response.status).toBe(201);
+        expect(response.body).toHaveProperty('id');
+      });
+    });
+
+    it('should return 400 if payload is empty', async () => {
+      const response = await request(app)
+        .post('/documents')
+        .send({}); // Empty payload
+
+      expect(response.status).toBe(400);
+      expect(response.body).toHaveProperty('error', 'Payload cannot be empty');
+    });
+
+    it('should return 429 if rate limit is exceeded', async () => {
+      const requests = Array.from({ length: 20 }, () =>
+        request(app)
+          .post('/documents')
+          .field('properties', JSON.stringify({
+            documentType: 'Generic Document',
+            documentTitle: 'Rate Limit Test'
+          }))
+          .field('entitlement', JSON.stringify({
+            mode: 'private'
+          }))
+      );
+
+      const responses = await Promise.all(requests);
+
+      const rateLimitedResponses = responses.filter((response) => response.status === 429);
+
+      expect(rateLimitedResponses.length).toBeGreaterThan(0);
+      rateLimitedResponses.forEach((response) => {
+        expect(response.body).toHaveProperty('error', 'Too many requests');
+      });
+    });
+  });
 });

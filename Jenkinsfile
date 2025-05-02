@@ -14,16 +14,33 @@ pipeline {
             }
         }
 
-        stage('Build') {
+        stage('Install Dependencies') {
             steps {
-                sh 'docker build -t $DOCKER_IMAGE .'
+                sh 'npm install'
             }
         }
 
-        stage('Test') {
+        stage('Run Unit Tests') {
             steps {
-                sh 'npm install'
                 sh 'npm test'
+            }
+        }
+
+        stage('Run Integration Tests') {
+            steps {
+                sh 'npm run test:integration'
+            }
+        }
+
+        stage('Apply Database Migrations') {
+            steps {
+                sh 'npx sequelize-cli db:migrate'
+            }
+        }
+
+        stage('Build') {
+            steps {
+                sh 'docker build -t $DOCKER_IMAGE .'
             }
         }
 
@@ -54,6 +71,24 @@ pipeline {
                 sh 'docker-compose --env-file .env.prod down'
                 sh 'docker-compose --env-file .env.prod up -d'
             }
+        }
+
+        stage('Build and Deploy') {
+            steps {
+                sh 'docker-compose up --build -d'
+            }
+        }
+    }
+
+    post {
+        always {
+            sh 'docker-compose down'
+        }
+        success {
+            echo 'Deployment successful!'
+        }
+        failure {
+            echo 'Deployment failed.'
         }
     }
 }
