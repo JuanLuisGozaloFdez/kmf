@@ -1,0 +1,25 @@
+@startuml
+
+!define RECTANGLE_COLOR #ADD8E6
+
+skinparam rectangle {
+    BackgroundColor RECTANGLE_COLOR
+    BorderColor black
+    FontColor black
+}
+
+rectangle "User" as user
+rectangle "Web Application" as app
+rectangle "MySQL Database" as db
+rectangle "Prometheus" as prometheus
+rectangle "Loki" as loki
+rectangle "Grafana" as grafana
+
+user --> app : HTTP Requests
+app --> db : SQL Queries
+app --> prometheus : Metrics Export
+app --> loki : Log Export
+prometheus --> grafana : Metrics Visualization
+loki --> grafana : Log Visualization
+
+@enduml

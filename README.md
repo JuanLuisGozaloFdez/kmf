@@ -1,6 +1,13 @@
 # Document Management System
 
 This project is a document management system that includes features for managing documents, attachments, entitlement, and transaction logging. It also integrates monitoring using Prometheus, Loki, and Grafana.
+This README file is structured in three sections:
+
+-Instructions for installation
+-API
+-DB migration process
+
+# Instructions for installation
 
 ## Prerequisites
 
@@ -55,6 +62,7 @@ scrape_configs:
     static_configs:
       - targets: ['localhost:3000']
 ```
+
 >>2. Restart Prometheus to apply the changes
 
 5. Configure Loki
@@ -66,6 +74,16 @@ scrape_configs:
 6. Configure Grafana
 Add Prometheus and Loki as data sources in Grafana.
 Create dashboards to visualize metrics and logs.
+7. Configure Secrets
+
+- Use a Secrets Manager:
+
+For production environments, use a secrets manager like AWS Secrets Manager, Azure Key Vault, or HashiCorp Vault to securely store and retrieve sensitive information.
+
+- Encrypt .env Files:
+
+If .env files are used, ensure they are encrypted and not included in version control.
+
 7. Start the Application
 Run the following command to start the application:
 
@@ -73,10 +91,10 @@ Run the following command to start the application:
 npm start
 ```
 
-The application will be available at http://localhost:3000.
+The application will be available at <http://localhost:3000>.
 
 8.Access Metrics
-Prometheus metrics are exposed at the /metrics endpoint: http://localhost:3000/metrics
+Prometheus metrics are exposed at the /metrics endpoint: <http://localhost:3000/metrics>
 
 ## Additional Notes
 
@@ -301,3 +319,151 @@ Supported formats:
 - `gln`: GS1 GLN or IBM location ID
 - `gtin`: GS1 GTIN or IBM product ID
 - `uri`: Full URI/URL
+
+# Database Migrations
+
+This project uses Sequelize CLI for managing database migrations.
+
+## Setting Up Migrations
+
+1. **Install Sequelize CLI**  
+   Run the following command to install Sequelize CLI as a development dependency:
+
+   ```bash
+   npm install --save-dev sequelize-cli
+   `
+
+2. **Initialize Sequelize**  
+
+   Run the following command to initialize Sequelize in your project:
+
+   ```bash
+   npx sequelize-cli init
+   `
+   This will create the following folder structure:
+   `
+   migrations/
+   models/
+   seeders/
+   config/
+   `
+
+3. **Configure Sequelize for Migrations**  
+
+   Update the config/config.js file to use environment variables for database credentials:
+   `javascript
+   require('dotenv').config();
+
+   module.exports = {
+     development: {
+       username: process.env.DB_USER,
+       password: process.env.DB_PASSWORD,
+       database: process.env.DB_NAME,
+       host: process.env.DB_HOST,
+       dialect: 'mysql',
+     },
+     test: {
+       username: process.env.DB_USER,
+       password: process.env.DB_PASSWORD,
+       database: process.env.DB_NAME,
+       host: process.env.DB_HOST,
+       dialect: 'mysql',
+     },
+     production: {
+       username: process.env.DB_USER,
+       password: process.env.DB_PASSWORD,
+       database: process.env.DB_NAME,
+       host: process.env.DB_HOST,
+       dialect: 'mysql',
+     },
+   };
+   `
+
+4. **Create a Migration File**  
+   Run the following command to create a new migration file:
+
+   ```bash
+   npx sequelize-cli migration:generate --name create-documents-table
+   `
+   This will create a file in the migrations/ folder. Update the file to define the schema for the Documents table:
+   `javascript
+   'use strict';
+
+   module.exports = {
+     up: async (queryInterface, Sequelize) => {
+       await queryInterface.createTable('Documents', {
+         id: {
+           type: Sequelize.INTEGER,
+           autoIncrement: true,
+           primaryKey: true,
+         },
+         title: {
+           type: Sequelize.STRING,
+           allowNull: false,
+         },
+         createdAt: {
+           type: Sequelize.DATE,
+           allowNull: false,
+         },
+         updatedAt: {
+           type: Sequelize.DATE,
+           allowNull: false,
+         },
+       });
+     },
+
+     down: async (queryInterface, Sequelize) => {
+       await queryInterface.dropTable('Documents');
+     },
+   };
+   `
+
+5. **Run Migrations**  
+
+   To apply migrations, run the following command:
+
+   ```bash
+   npx sequelize-cli db:migrate
+   `
+   To undo the last migration, run:
+   
+   ```bash
+   npx sequelize-cli db:migrate:undo
+   `
+
+6. **Automate Migrations in Deployment**  
+
+   Update the Jenkinsfile to include a step for running migrations during deployment:
+   `groovy
+   stage('Run Migrations') {
+       steps {
+           sh 'npx sequelize-cli db:migrate'
+       }
+   }
+   `
+
+## Managing Migrations
+
+### Running Migrations
+
+To apply all pending migrations, run:
+
+```bash
+npx sequelize-cli db:migrate
+`
+
+### Undoing Migrations
+
+To undo the last migration, run:
+
+```bash
+npx sequelize-cli db:migrate:undo
+`
+
+### Creating a New Migration
+
+To create a new migration file, run:
+
+```bash
+npx sequelize-cli migration:generate --name <migration-name>
+`

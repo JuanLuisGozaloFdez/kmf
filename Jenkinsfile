@@ -4,6 +4,7 @@ pipeline {
     environment {
         DOCKER_IMAGE = "document-management-system"
         DOCKER_REGISTRY = "your-docker-registry"
+        ENV = "preprod" // Change to "prod" for production deployment
     }
 
     stages {
@@ -35,10 +36,23 @@ pipeline {
             }
         }
 
-        stage('Deploy') {
+        stage('Deploy to Pre-production') {
+            when {
+                environment name: 'ENV', value: 'preprod'
+            }
             steps {
-                sh 'docker-compose down'
-                sh 'docker-compose up -d'
+                sh 'docker-compose --env-file .env.preprod down'
+                sh 'docker-compose --env-file .env.preprod up -d'
+            }
+        }
+
+        stage('Deploy to Production') {
+            when {
+                environment name: 'ENV', value: 'prod'
+            }
+            steps {
+                sh 'docker-compose --env-file .env.prod down'
+                sh 'docker-compose --env-file .env.prod up -d'
             }
         }
     }
