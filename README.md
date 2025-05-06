@@ -3,13 +3,13 @@
 This project is a document management system that includes features for managing documents, attachments, entitlement, and transaction logging. It also integrates monitoring using Prometheus, Loki, and Grafana.
 This README file is structured in three sections:
 
--Instructions for installation
--API
--DB migration process
+- Instructions for installation
+- API
+- DB migration process
 
-# Instructions for installation
+## Instructions for installation
 
-## Prerequisites
+### Prerequisites
 
 1. **Node.js**: Install Node.js (version 14 or higher).
 2. **MySQL**: Install and configure MySQL.
@@ -17,16 +17,16 @@ This README file is structured in three sections:
 4. **Loki**: Install Loki for log aggregation.
 5. **Grafana**: Install Grafana for visualization.
 
-## Setup Instructions
+### Setup Instructions
 
-### 1. Clone the Repository
+#### 1. Clone the Repository
 
 ```bash
 git clone <repository-url>
 cd kmf
 ```
 
-## 2. Install Dependencies
+#### 2. Install Dependencies
 
 Run the following command to install all required npm packages:
 
@@ -34,7 +34,7 @@ Run the following command to install all required npm packages:
 npm install
 ```
 
-## 3. Configure MySQL Database
+#### 3. Configure MySQL Database
 
 1. Create a MySQL database named document_management.
 2. Update the data/dbconfig.ts file with your MySQL Credentials:
@@ -52,9 +52,9 @@ export const sequelize = new Sequelize('document_management', 'username', 'passw
 mysql -u <username> -p document_management < data/dbConfig.sql
 ```
 
-4. Configure Prometheus
+#### 4. Configure Prometheus
 
->>1. Add the following job to your Prometheus configuration file (prometheus.yml):
+1. Add the following job to your Prometheus configuration file (prometheus.yml):
 
 ```yaml
 scrape_configs:
@@ -63,18 +63,20 @@ scrape_configs:
       - targets: ['localhost:3000']
 ```
 
->>2. Restart Prometheus to apply the changes
+2. Restart Prometheus to apply the changes
 
-5. Configure Loki
+#### 5. Configure Loki
 
->> 1. Install Loki and configure it to collect logs from your application.
->> 2. Use a log shipper like promtail to forward logs to Loki.
->> 3. Ensure your application logs are written to a file (e.g., combined.log) that Loki can read.
+1. Install Loki and configure it to collect logs from your application.
+2. Use a log shipper like promtail to forward logs to Loki.
+3. Ensure your application logs are written to a file (e.g., combined.log) that Loki can read.
 
-6. Configure Grafana
+#### 6. Configure Grafana
+
 Add Prometheus and Loki as data sources in Grafana.
 Create dashboards to visualize metrics and logs.
-7. Configure Secrets
+
+#### 7. Configure Secrets
 
 - Use a Secrets Manager:
 
@@ -84,7 +86,8 @@ For production environments, use a secrets manager like AWS Secrets Manager, Azu
 
 If .env files are used, ensure they are encrypted and not included in version control.
 
-7. Start the Application
+#### 8. Start the Application
+
 Run the following command to start the application:
 
 ```bash
@@ -93,27 +96,27 @@ npm start
 
 The application will be available at <http://localhost:3000>.
 
-8.Access Metrics
+#### 9. Access Metrics
+
 Prometheus metrics are exposed at the /metrics endpoint: <http://localhost:3000/metrics>
 
-## Additional Notes
+### Additional Notes
 
 - Ensure that the MySQL service is running before starting the application.
 - Use Grafana to monitor application performance and logs.
 - For any issues, refer to the logs in combined.log and error.log.
 
-## License
-This project is licensed under the MIT License. ```
+### License
 
-# Documents API
+This project is licensed under the MIT License.
 
-The Documents API allows authorized users to upload, view and share supply chain documents, such as facility certificates and audit reports, along with their related properties and attachments.
+## Documents API
 
-## Base URL
+### Base URL for Documents API
 
 All API endpoints are prefixed with: `/kmf/api/documents/v1`
 
-## Document Types and Properties
+### Document Types and Properties
 
 A document definition consists of:
 
@@ -121,7 +124,7 @@ A document definition consists of:
 - Content file (PDF, text, PNG, JPEG or GIF format)
 - Optional file attachments
 
-### Available Document Types
+#### Available Document Types
 
 - Generic Document
 - Generic Certificate  
@@ -129,29 +132,29 @@ A document definition consists of:
 
 Use `GET /categories` to view all available document types and `GET /templates/{documentType}` to view required properties for a specific type.
 
-## Document Linking
+### Document Linking
 
 Documents can be linked to:
 
-### Traceable Elements (Only one type allowed)
+#### Traceable Elements (Only one type allowed)
 
 - Facilities (via `locationGLNList`)
 - Products (via `productList`)
 - Organizations (via `organizationList`)
 - EPCs (via `epcList`)
 
-### Additional Links
+#### Additional Links
 
 - EPCIS events (via `eventIDList`)
 - Business transactions (via `transactionIDList`)
 
-## Document Sharing
+### Document Sharing
 
-### Default Access
+#### Default Access
 
 Documents are created with `private` entitlement by default, viewable only by the owning organization.
 
-### Sharing Methods
+#### Sharing Methods
 
 1. **Linked Documents**
    - Set `entitlementMode` to `linked`
@@ -162,11 +165,11 @@ Documents are created with `private` entitlement by default, viewable only by th
    - Use `entitledOrgIds` to specify organizations
    - Works for both `private` and `linked` documents
 
-## API Endpoints
+### API Endpoints
 
-### Documents
+#### Documents
 
-#### `POST /documents`
+##### `POST /documents`
 
 Creates a new document with properties, content, and entitlement information.
 
@@ -177,7 +180,7 @@ Creates a new document with properties, content, and entitlement information.
   - `entitlement`: JSON entitlement info
 - Responses: 201 (Created), 202 (Accepted)
 
-#### `GET /documents`
+##### `GET /documents`
 
 Retrieves information about multiple documents.
 
@@ -186,70 +189,7 @@ Retrieves information about multiple documents.
 - Returns: Array of document information including properties and attachment references
 - Use `GET /documents/{docId}/content` to download actual document contents
 
-#### `GET /documents/{docId}`
-
-Retrieves document information and metadata.
-
-#### `PUT /documents/{docId}`
-
-Updates document properties, content, and entitlement.
-
-- Supports both `application/json` and `multipart/form-data`
-
-#### `DELETE /documents/{docId}`
-
-Permanently deletes a document.
-
-### Document Content
-
-#### `GET /documents/{docId}/content`
-
-Downloads document content file.
-
-#### `PUT /documents/{docId}/content`
-
-Updates document content file.
-
-- Max file size: 20MB
-- Supported formats: PDF, text, PNG, JPEG, GIF
-
-### Entitlements
-
-#### `GET /documents/{docId}/entitlement`
-
-Retrieves document sharing settings.
-
-#### `PUT /documents/{docId}/entitlement`
-
-Updates document sharing settings.
-
-- Modes: `private`, `linked`
-- Optional: `entitledOrgIds`
-
-### Attachments
-
-#### `POST /documents/{docId}/attachments`
-
-Adds new attachment to document.
-
-- Max file size: 20MB
-- Supported formats: PDF, text, PNG, JPEG, GIF
-
-#### `GET /documents/{docId}/attachments/{attachmentId}`
-
-Downloads specific attachment.
-
-#### `PUT /documents/{docId}/attachments/{attachmentId}`
-
-Updates existing attachment.
-
-#### `DELETE /documents/{docId}/attachments/{attachmentId}`
-
-Removes attachment from document.
-
-### Search
-
-#### `POST /documents/search`
+##### `POST /documents/search`
 
 Searches documents using multiple criteria:
 
@@ -259,79 +199,101 @@ Searches documents using multiple criteria:
 - Document properties
 - Associated elements
 
-### Categories & Templates
+#### Document Details
 
-#### `GET /categories`
+##### `GET /documents/{docId}`
 
-Lists all available document categories.
+Retrieves document information and metadata.
 
-#### `GET /templates/{documentType}`
+##### `PUT /documents/{docId}`
 
-Retrieves template for specific document type.
+Updates document properties, content, and entitlement.
 
-### Transactions
+- Supports both `application/json` and `multipart/form-data`
 
-#### `GET /transactions`
+##### `DELETE /documents/{docId}`
+
+Permanently deletes a document.
+
+#### Document Content
+
+##### `GET /documents/{docId}/content`
+
+Downloads document content file.
+
+##### `PUT /documents/{docId}/content`
+
+Updates document content file.
+
+- Max file size: 20MB
+- Supported formats: PDF, text, PNG, JPEG, GIF
+
+#### Entitlements
+
+##### `GET /documents/{docId}/entitlement`
+
+Retrieves document sharing settings.
+
+##### `PUT /documents/{docId}/entitlement`
+
+Updates document sharing settings.
+
+- Modes: `private`, `linked`
+- Optional: `entitledOrgIds`
+
+#### Attachments
+
+##### `POST /documents/{docId}/attachments`
+
+Adds new attachment to document.
+
+- Max file size: 20MB
+- Supported formats: PDF, text, PNG, JPEG, GIF
+
+##### `GET /documents/{docId}/attachments/{attachmentId}`
+
+Downloads specific attachment.
+
+##### `PUT /documents/{docId}/attachments/{attachmentId}`
+
+Updates existing attachment.
+
+##### `DELETE /documents/{docId}/attachments/{attachmentId}`
+
+Removes attachment from document.
+
+#### Transactions
+
+##### `GET /transactions`
 
 Checks status of asynchronous operations using correlation IDs.
 
-## File Size Limits
+#### Categories & Templates
 
-- Document properties (JSON): 20KB
-- Content files: 20MB
-- Attachments: 20MB
+##### `GET /categories`
 
-## Error Responses
+Lists all available document categories.
 
-- 400: Bad Request
-- 401: Unauthorized
-- 403: Forbidden
-- 404: Not Found
-- 410: Gone
-- 413: Payload Too Large
-- 415: Unsupported Media Type
-- 500: Internal Server Error
+##### `GET /templates/{documentType}`
 
-## Custom Properties
+Retrieves template for specific document type.
 
-Custom properties must be specified in an array using the `customProperties` field:
+#### Monitoring
 
-```json
-{
-  "customProperties": [
-    {
-      "name": "Age",
-      "value": 5
-    },
-    {
-      "name": "Related product",
-      "value": "95011015300038",
-      "format": "gtin"
-    }
-  ]
-}
-```
+##### `GET /metrics`
 
-Supported formats:
+Exposes Prometheus metrics for monitoring application performance.
 
-- `date`: ISO 8601 (YYYY-MM-DD)
-- `date-time`: ISO 8601 (YYYY-MM-DDThh:mm:ss.mmmZ)
-- `gln`: GS1 GLN or IBM location ID
-- `gtin`: GS1 GTIN or IBM product ID
-- `uri`: Full URI/URL
+## Database Migrations
 
-# Database Migrations
-
-This project uses Sequelize CLI for managing database migrations.
-
-## Setting Up Migrations
+### Setting Up Migrations
 
 1. **Install Sequelize CLI**  
    Run the following command to install Sequelize CLI as a development dependency:
 
    ```bash
    npm install --save-dev sequelize-cli
-   `
+   ```
 
 2. **Initialize Sequelize**  
 
@@ -339,19 +301,22 @@ This project uses Sequelize CLI for managing database migrations.
 
    ```bash
    npx sequelize-cli init
-   `
+   ```
+
    This will create the following folder structure:
-   `
+  
+  ```text
    migrations/
    models/
    seeders/
    config/
-   `
-
+   ```
+   
 3. **Configure Sequelize for Migrations**  
 
    Update the config/config.js file to use environment variables for database credentials:
-   `javascript
+
+  ```javascript
    require('dotenv').config();
 
    module.exports = {
@@ -377,16 +342,18 @@ This project uses Sequelize CLI for managing database migrations.
        dialect: 'mysql',
      },
    };
-   `
+   ```
 
 4. **Create a Migration File**  
    Run the following command to create a new migration file:
 
    ```bash
    npx sequelize-cli migration:generate --name create-documents-table
-   `
+   ```
+  
    This will create a file in the migrations/ folder. Update the file to define the schema for the Documents table:
-   `javascript
+  
+   ```javascript
    'use strict';
 
    module.exports = {
@@ -416,7 +383,7 @@ This project uses Sequelize CLI for managing database migrations.
        await queryInterface.dropTable('Documents');
      },
    };
-   `
+   ```
 
 5. **Run Migrations**  
 
@@ -424,46 +391,48 @@ This project uses Sequelize CLI for managing database migrations.
 
    ```bash
    npx sequelize-cli db:migrate
-   `
+   ```
+  
    To undo the last migration, run:
-   
+  
    ```bash
    npx sequelize-cli db:migrate:undo
-   `
+   ```
 
 6. **Automate Migrations in Deployment**  
 
    Update the Jenkinsfile to include a step for running migrations during deployment:
-   `groovy
+  
+   ```groovy
    stage('Run Migrations') {
        steps {
            sh 'npx sequelize-cli db:migrate'
        }
    }
-   `
+   ```
 
-## Managing Migrations
+### Managing Migrations
 
-### Running Migrations
+#### Running Migrations
 
 To apply all pending migrations, run:
 
 ```bash
 npx sequelize-cli db:migrate
-`
+```
 
-### Undoing Migrations
+#### Undoing Migrations
 
 To undo the last migration, run:
 
 ```bash
 npx sequelize-cli db:migrate:undo
-`
+```
 
-### Creating a New Migration
+#### Creating a New Migration
 
 To create a new migration file, run:
 
 ```bash
 npx sequelize-cli migration:generate --name <migration-name>
-`
+```
