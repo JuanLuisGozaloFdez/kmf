@@ -710,5 +710,65 @@ router.get('/transactions', async (req, res) => {
   }
 });
 
+// DELETE /documents/:docId - Delete a specific document
+router.delete('/documents/:docId', authorize(['admin']), async (req, res) => {
+  const correlationId = crypto.randomUUID();
+  try {
+    const { docId } = req.params;
+
+    const document = await DocumentModel.findByPk(docId);
+
+    if (!document) {
+      await TransactionModel.create({
+        correlationId,
+        status: 'failed',
+        timestamp: new Date(),
+      });
+      return res.status(404).json({ error: 'Document not found' });
+    }
+
+    await document.destroy();
+
+    await TransactionModel.create({
+      correlationId,
+      status: 'completed',
+      timestamp: new Date(),
+    });
+
+    res.json({ message: 'Document deleted successfully' });
+  } catch (error) {
+    await TransactionModel.create({
+      correlationId,
+      status: 'failed',
+      timestamp: new Date(),
+    });
+    console.error('Error deleting document:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// POST /documents/search - Search documents
+router.post('/documents/search', express.json(), async (req, res) => {
+  try {
+    const searchConditions = searchConditionsSchema.parse(req.body);
+
+    const documents = await DocumentModel.findAll({
+      where: searchConditions,
+      attributes: ['id', 'type', 'properties', 'createdAt', 'updatedAt'], // Select only necessary fields
+    });
+
+    if (documents.length === 0) {
+      return res.status(404).json({ error: 'No documents found matching the search criteria' });
+    }
+
+    res.json({ documents });
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      return res.status(400).json({ error: error.errors });
+    }
+    console.error('Error searching documents:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
 
 export default router;

@@ -151,6 +151,64 @@ describe('Documents API', () => {
     });
   });
 
+  describe('DELETE /documents/:docId', () => {
+    it('should delete a document successfully', async () => {
+      const document = await DocumentModel.create({
+        type: 'Generic Document',
+        properties: { title: 'Test Document' },
+        createdBy: 'test-user',
+        organizationId: 'test-org',
+      });
+
+      const response = await request(app).delete(`/documents/${document.id}`).set('Authorization', 'Bearer valid-admin-token');
+      expect(response.status).toBe(200);
+      expect(response.body).toHaveProperty('message', 'Document deleted successfully');
+    });
+
+    it('should return 404 if the document does not exist', async () => {
+      const response = await request(app).delete('/documents/nonexistent-doc-id').set('Authorization', 'Bearer valid-admin-token');
+      expect(response.status).toBe(404);
+      expect(response.body).toHaveProperty('error', 'Document not found');
+    });
+  });
+
+  describe('POST /documents/search', () => {
+    it('should return documents matching the search criteria', async () => {
+      await DocumentModel.create({
+        type: 'Generic Document',
+        properties: { title: 'Searchable Document' },
+        createdBy: 'test-user',
+        organizationId: 'test-org',
+      });
+
+      const response = await request(app)
+        .post('/documents/search')
+        .send({ properties: { title: 'Searchable Document' } });
+
+      expect(response.status).toBe(200);
+      expect(response.body.documents).toHaveLength(1);
+      expect(response.body.documents[0]).toHaveProperty('properties.title', 'Searchable Document');
+    });
+
+    it('should return 404 if no documents match the search criteria', async () => {
+      const response = await request(app)
+        .post('/documents/search')
+        .send({ properties: { title: 'Nonexistent Document' } });
+
+      expect(response.status).toBe(404);
+      expect(response.body).toHaveProperty('error', 'No documents found matching the search criteria');
+    });
+
+    it('should return 400 for invalid search criteria', async () => {
+      const response = await request(app)
+        .post('/documents/search')
+        .send({ invalidField: 'value' });
+
+      expect(response.status).toBe(400);
+      expect(response.body).toHaveProperty('error');
+    });
+  });
+
   describe('Attachments API', () => {
     let documentId: string;
     let attachmentId: string;
@@ -331,6 +389,26 @@ describe('Documents API', () => {
 
       expect(response.status).toBe(400);
       expect(response.body).toHaveProperty('error', 'Invalid attachment type');
+    });
+  });
+
+  describe('Boundary Values and Invalid Data Types - Additional Tests', () => {
+    it('should return 400 if document type is empty', async () => {
+      const response = await request(app)
+        .post('/documents')
+        .field('properties', JSON.stringify({ documentType: '', documentTitle: 'Test Document' }))
+        .field('entitlement', JSON.stringify({ mode: 'private' }));
+      expect(response.status).toBe(400);
+      expect(response.body).toHaveProperty('error', 'Invalid document type');
+    });
+
+    it('should return 400 if entitlement mode is empty', async () => {
+      const response = await request(app)
+        .post('/documents')
+        .field('properties', JSON.stringify({ documentType: 'Generic Document', documentTitle: 'Test Document' }))
+        .field('entitlement', JSON.stringify({ mode: '' }));
+      expect(response.status).toBe(400);
+      expect(response.body).toHaveProperty('error', 'Invalid entitlement mode');
     });
   });
 

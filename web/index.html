@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Administrative Web</title>
+  <link rel="stylesheet" href="styles.css">
+  <script src="scripts.js" defer></script>
+</head>
+<body>
+  <div class="top-area">
+    <h1 id="function-title">Administrative Functions</h1>
+  </div>
+  <div class="main-container">
+    <div class="left-menu">
+      <ul>
+        <li><a href="#" onclick="loadFunction('documents')">Documents</a></li>
+        <li><a href="#" onclick="loadFunction('authorisations')">Authorisations</a></li>
+        <li><a href="#" onclick="loadFunction('monitoring')">Monitoring</a></li>
+        <li><a href="#" onclick="loadFunction('verification')">Smart Contract Verification</a></li>
+        <li><a href="#" onclick="loadFunction('configuration')">Configuration</a></li>
+      </ul>
+    </div>
+    <div class="central-area" id="function-window">
+      <p>Select a function from the menu.</p>
+    </div>
+  </div>
+  <script src="scripts.js"></script>
+</body>
+</html>

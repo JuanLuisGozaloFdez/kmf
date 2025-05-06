@@ -311,3 +311,305 @@ describe('Integration Tests for Documents API - Empty Payloads', () => {
     expect(response.body).toHaveProperty('error', 'Payload cannot be empty');
   });
 });
+
+describe('Integration Tests - Edge Cases', () => {
+  describe('Document Creation', () => {
+    it('should return 400 if required fields are missing', async () => {
+      const response = await request(app)
+        .post('/documents')
+        .send({ entitlement: { mode: 'private' } });
+
+      expect(response.status).toBe(400);
+      expect(response.body).toHaveProperty('error');
+    });
+
+    it('should return 415 for unsupported file types', async () => {
+      const response = await request(app)
+        .post('/documents')
+        .field('properties', JSON.stringify({ documentType: 'Generic Document', documentTitle: 'Test' }))
+        .attach('content', Buffer.from('test content'), 'test.unsupported');
+
+      expect(response.status).toBe(415);
+      expect(response.body).toHaveProperty('error', 'Unsupported Media Type');
+    });
+  });
+
+  describe('Pagination and Limits', () => {
+    it('should enforce MAX_LIMIT_DOC for document retrieval', async () => {
+      const docIds = Array(101).fill('dummy-id'); // Assuming MAX_LIMIT_DOC is 100
+      const response = await request(app).get('/documents').query({ 'docIds[]': docIds });
+
+      expect(response.status).toBe(400);
+      expect(response.body).toHaveProperty('error', 'The maximum number of documents that can be retrieved is 100');
+    });
+
+    it('should handle exactly MAX_LIMIT_DOC documents', async () => {
+      const docIds = Array(100).fill('dummy-id');
+      const response = await request(app).get('/documents').query({ 'docIds[]': docIds });
+
+      expect(response.status).toBe(200);
+      expect(response.body).toHaveProperty('documents');
+    });
+  });
+
+  describe('Concurrent Updates', () => {
+    it('should handle concurrent updates to a document', async () => {
+      const documentId = 'dummy-id';
+      const requests = Array.from({ length: 5 }, () =>
+        request(app)
+          .put(`/documents/${documentId}/content`)
+          .attach('content', Buffer.from('updated content'), 'updated.txt')
+      );
+
+      const responses = await Promise.all(requests);
+      responses.forEach((response) => {
+        expect(response.status).toBe(200);
+        expect(response.body).toHaveProperty('message', 'Document content updated successfully');
+      });
+    });
+  });
+
+  describe('Attachments', () => {
+    it('should return 400 if no file is uploaded for an attachment', async () => {
+      const response = await request(app).post('/documents/dummy-id/attachments').send({ type: 'image/png' });
+
+      expect(response.status).toBe(400);
+      expect(response.body).toHaveProperty('error', 'No file uploaded');
+    });
+
+    it('should return 404 if attachment does not exist', async () => {
+      const response = await request(app).get('/documents/dummy-id/attachments/nonexistent-attachment-id');
+
+      expect(response.status).toBe(404);
+      expect(response.body).toHaveProperty('error', 'Attachment not found');
+    });
+  });
+
+  describe('Transactions', () => {
+    it('should return 404 if no transactions are found', async () => {
+      const response = await request(app).get('/transactions').query({ 'correlationIds[]': ['nonexistent-id'] });
+
+      expect(response.status).toBe(404);
+      expect(response.body).toHaveProperty('error', 'No transactions found');
+    });
+
+    it('should retrieve transaction statuses for valid correlation IDs', async () => {
+      const correlationIds = ['valid-id-1', 'valid-id-2'];
+      const response = await request(app).get('/transactions').query({ 'correlationIds[]': correlationIds });
+
+      expect(response.status).toBe(200);
+      expect(response.body.transactions).toHaveLength(correlationIds.length);
+    });
+  });
+
+  describe('Metrics Endpoint', () => {
+    it('should return metrics data', async () => {
+      const response = await request(app).get('/metrics');
+
+      expect(response.status).toBe(200);
+      expect(response.headers['content-type']).toContain('text/plain');
+    });
+  });
+});
+
+describe('Integration Tests - Additional Edge Cases', () => {
+  describe('Document Retrieval', () => {
+    it('should return 400 for malformed docIds[] parameter', async () => {
+      const response = await request(app).get('/documents').query({ 'docIds[]': 'malformed-id' });
+
+      expect(response.status).toBe(400);
+      expect(response.body).toHaveProperty('error', 'docIds[] parameter is required and must be an array');
+    });
+  });
+
+  describe('Attachments', () => {
+    it('should update an attachment for a document', async () => {
+      const documentId = 'dummy-doc-id';
+      const attachmentId = 'dummy-attachment-id';
+
+      const response = await request(app)
+        .put(`/documents/${documentId}/attachments/${attachmentId}`)
+        .attach('content', Buffer.from('updated content'), 'updated.txt');
+
+      expect(response.status).toBe(200);
+      expect(response.body).toHaveProperty('message', 'Attachment updated successfully');
+    });
+
+    it('should delete an attachment for a document', async () => {
+      const documentId = 'dummy-doc-id';
+      const attachmentId = 'dummy-attachment-id';
+
+      const response = await request(app).delete(`/documents/${documentId}/attachments/${attachmentId}`);
+
+      expect(response.status).toBe(200);
+      expect(response.body).toHaveProperty('message', 'Attachment deleted successfully');
+    });
+  });
+
+  describe('Transactions', () => {
+    it('should handle a mix of valid and invalid correlation IDs', async () => {
+      const correlationIds = ['valid-id', 'invalid-id'];
+      const response = await request(app).get('/transactions').query({ 'correlationIds[]': correlationIds });
+
+      expect(response.status).toBe(200);
+      expect(response.body.transactions).toHaveLength(1); // Only valid ID should return a transaction
+    });
+  });
+
+  describe('Metrics Endpoint', () => {
+    it('should handle failure to load metrics', async () => {
+      jest.spyOn(client.Registry.prototype, 'metrics').mockImplementation(() => {
+        throw new Error('Metrics unavailable');
+      });
+
+      const response = await request(app).get('/metrics');
+
+      expect(response.status).toBe(500);
+      expect(response.body).toHaveProperty('error', 'Metrics unavailable');
+
+      jest.restoreAllMocks();
+    });
+  });
+
+  describe('Concurrent Requests', () => {
+    it('should handle multiple concurrent updates to attachments', async () => {
+      const documentId = 'dummy-doc-id';
+      const attachmentId = 'dummy-attachment-id';
+
+      const requests = Array.from({ length: 5 }, () =>
+        request(app)
+          .put(`/documents/${documentId}/attachments/${attachmentId}`)
+          .attach('content', Buffer.from('updated content'), 'updated.txt')
+      );
+
+      const responses = await Promise.all(requests);
+      responses.forEach((response) => {
+        expect(response.status).toBe(200);
+        expect(response.body).toHaveProperty('message', 'Attachment updated successfully');
+      });
+    });
+  });
+});
+
+describe('Integration Tests for Documents API - Additional Edge Cases', () => {
+  describe('GET /categories', () => {
+    it('should return an empty array if no document templates are defined', async () => {
+      jest.spyOn(documentTemplates, 'keys').mockReturnValue([]);
+      const response = await request(app).get('/categories');
+      expect(response.status).toBe(200);
+      expect(response.body.categories).toEqual([]);
+      jest.restoreAllMocks();
+    });
+  });
+
+  describe('GET /templates/:documentType', () => {
+    it('should return 400 for invalid documentType format', async () => {
+      const response = await request(app).get('/templates/Invalid@Type');
+      expect(response.status).toBe(400);
+      expect(response.body).toHaveProperty('error', 'Invalid document type');
+    });
+  });
+
+  describe('GET /documents', () => {
+    it('should return 400 for empty docIds[] parameter', async () => {
+      const response = await request(app).get('/documents').query({ 'docIds[]': [] });
+      expect(response.status).toBe(400);
+      expect(response.body).toHaveProperty('error', 'docIds[] parameter is required and must be an array');
+    });
+  });
+
+  describe('POST /documents', () => {
+    it('should return 400 for invalid properties JSON format', async () => {
+      const response = await request(app)
+        .post('/documents')
+        .field('properties', 'invalid-json')
+        .field('entitlement', JSON.stringify({ mode: 'private' }));
+      expect(response.status).toBe(400);
+      expect(response.body).toHaveProperty('error');
+    });
+  });
+
+  describe('GET /documents/:docId/content', () => {
+    it('should return 400 for invalid version query parameter', async () => {
+      const response = await request(app).get('/documents/valid-doc-id/content').query({ version: 'invalid' });
+      expect(response.status).toBe(400);
+      expect(response.body).toHaveProperty('error', 'Invalid version parameter');
+    });
+  });
+
+  describe('PUT /documents/:docId/content', () => {
+    it('should return 415 for unsupported file types', async () => {
+      const response = await request(app)
+        .put('/documents/valid-doc-id/content')
+        .attach('content', Buffer.from('test content'), 'test.unsupported');
+      expect(response.status).toBe(415);
+      expect(response.body).toHaveProperty('error', 'Unsupported Media Type');
+    });
+  });
+
+  describe('GET /transactions', () => {
+    it('should return 400 for empty correlationIds[] parameter', async () => {
+      const response = await request(app).get('/transactions').query({ 'correlationIds[]': [] });
+      expect(response.status).toBe(400);
+      expect(response.body).toHaveProperty('error', 'correlationIds[] is required and must be an array');
+    });
+  });
+});
+
+describe('Integration Tests for DELETE /documents/:docId', () => {
+  it('should delete a document successfully', async () => {
+    const document = await DocumentModel.create({
+      type: 'Generic Document',
+      properties: { title: 'Test Document' },
+      createdBy: 'test-user',
+      organizationId: 'test-org',
+    });
+
+    const response = await request(app).delete(`/documents/${document.id}`).set('Authorization', 'Bearer valid-admin-token');
+    expect(response.status).toBe(200);
+    expect(response.body).toHaveProperty('message', 'Document deleted successfully');
+  });
+
+  it('should return 404 if the document does not exist', async () => {
+    const response = await request(app).delete('/documents/nonexistent-doc-id').set('Authorization', 'Bearer valid-admin-token');
+    expect(response.status).toBe(404);
+    expect(response.body).toHaveProperty('error', 'Document not found');
+  });
+});
+
+describe('Integration Tests for POST /documents/search', () => {
+  it('should return documents matching the search criteria', async () => {
+    await DocumentModel.create({
+      type: 'Generic Document',
+      properties: { title: 'Searchable Document' },
+      createdBy: 'test-user',
+      organizationId: 'test-org',
+    });
+
+    const response = await request(app)
+      .post('/documents/search')
+      .send({ properties: { title: 'Searchable Document' } });
+
+    expect(response.status).toBe(200);
+    expect(response.body.documents).toHaveLength(1);
+    expect(response.body.documents[0]).toHaveProperty('properties.title', 'Searchable Document');
+  });
+
+  it('should return 404 if no documents match the search criteria', async () => {
+    const response = await request(app)
+      .post('/documents/search')
+      .send({ properties: { title: 'Nonexistent Document' } });
+
+    expect(response.status).toBe(404);
+    expect(response.body).toHaveProperty('error', 'No documents found matching the search criteria');
+  });
+
+  it('should return 400 for invalid search criteria', async () => {
+    const response = await request(app)
+      .post('/documents/search')
+      .send({ invalidField: 'value' });
+
+    expect(response.status).toBe(400);
+    expect(response.body).toHaveProperty('error');
+  });
+});

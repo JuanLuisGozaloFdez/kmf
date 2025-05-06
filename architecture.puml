@@ -22,4 +22,21 @@ app --> loki : Log Export
 prometheus --> grafana : Metrics Visualization
 loki --> grafana : Log Visualization
 
+actor Admin as A
+rectangle Backend {
+  [Documents API]
+  [Authorisations API]
+  [Monitoring API]
+  [Smart Contracts API]
+}
+rectangle "Web Interface" as Web {
+  [Documents Management]
+  [Authorisations Management]
+  [Monitoring Logs]
+  [Smart Contract Verification]
+  [Configuration]
+}
+A --> Web
+Web --> Backend
+
 @enduml
