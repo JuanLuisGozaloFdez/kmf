@@ -771,4 +771,142 @@ router.post('/documents/search', express.json(), async (req, res) => {
   }
 });
 
+// GET /epcs/{epc_id}/trace - Run a trace on a single lot, package, or container
+router.get('/epcs/:epc_id/trace', async (req, res) => {
+  try {
+    const { epc_id } = req.params;
+    const { product_id, depth = 5, upstream = true, downstream = true, lrt_mode } = req.query;
+
+    if (depth < 0) {
+      return res.status(400).json({ error: 'Depth must be a non-negative integer' });
+    }
+
+    // Simulate trace logic
+    const traceResult = {
+      epc_id,
+      depth,
+      upstream,
+      downstream,
+      lrt_mode,
+      events: [],
+      output_epcs: [],
+      input_epcs: [],
+      parent_epcs: [],
+      child_epcs: [],
+    };
+
+    res.json({ trace: traceResult });
+  } catch (error) {
+    console.error('Error running trace:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// POST /epcs/{epc_id}/trace - Run a trace on a single lot, package, or container
+router.post('/epcs/:epc_id/trace', express.json(), async (req, res) => {
+  try {
+    const { epc_id } = req.params;
+    const { product_id, depth = 5, upstream = true, downstream = true, lrt_mode } = req.body;
+
+    if (depth < 0) {
+      return res.status(400).json({ error: 'Depth must be a non-negative integer' });
+    }
+
+    // Simulate trace logic
+    const traceResult = {
+      epc_id,
+      depth,
+      upstream,
+      downstream,
+      lrt_mode,
+      events: [],
+      output_epcs: [],
+      input_epcs: [],
+      parent_epcs: [],
+      child_epcs: [],
+    };
+
+    res.json({ trace: traceResult });
+  } catch (error) {
+    console.error('Error running trace:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// GET /epcs/{epc_id}/trace/consumer - Run a consumer trace on a single lot, package, or container
+router.get('/epcs/:epc_id/trace/consumer', async (req, res) => {
+  try {
+    const { epc_id } = req.params;
+    const {
+      include_events = true,
+      include_products = true,
+      include_lots_and_serials = true,
+      include_locations = true,
+      include_trace = true,
+      include_payloads = true,
+      lrt_mode,
+    } = req.query;
+
+    // Simulate consumer trace logic
+    const consumerTraceResult = {
+      epc_id,
+      include_events,
+      include_products,
+      include_lots_and_serials,
+      include_locations,
+      include_trace,
+      include_payloads,
+      lrt_mode,
+      events: [],
+      products: [],
+      locations: [],
+      lots_and_serials: [],
+      payloads: [],
+    };
+
+    res.json({ trace: consumerTraceResult });
+  } catch (error) {
+    console.error('Error running consumer trace:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// POST /epcs/{epc_id}/trace/consumer - Run a consumer trace on a single lot, package, or container
+router.post('/epcs/:epc_id/trace/consumer', express.json(), async (req, res) => {
+  try {
+    const { epc_id } = req.params;
+    const {
+      include_events = true,
+      include_products = true,
+      include_lots_and_serials = true,
+      include_locations = true,
+      include_trace = true,
+      include_payloads = true,
+      lrt_mode,
+    } = req.body;
+
+    // Simulate consumer trace logic
+    const consumerTraceResult = {
+      epc_id,
+      include_events,
+      include_products,
+      include_lots_and_serials,
+      include_locations,
+      include_trace,
+      include_payloads,
+      lrt_mode,
+      events: [],
+      products: [],
+      locations: [],
+      lots_and_serials: [],
+      payloads: [],
+    };
+
+    res.json({ trace: consumerTraceResult });
+  } catch (error) {
+    console.error('Error running consumer trace:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
 export default router;

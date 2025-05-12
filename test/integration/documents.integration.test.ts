@@ -613,3 +613,41 @@ describe('Integration Tests for POST /documents/search', () => {
     expect(response.body).toHaveProperty('error');
   });
 });
+
+describe('Integration Tests for Trace API', () => {
+  describe('GET /epcs/:epc_id/trace', () => {
+    it('should return trace results for a valid EPC', async () => {
+      const response = await request(app).get('/epcs/valid-epc-id/trace');
+      expect(response.status).toBe(200);
+      expect(response.body).toHaveProperty('trace');
+    });
+  });
+
+  describe('POST /epcs/:epc_id/trace', () => {
+    it('should return trace results for a valid EPC', async () => {
+      const response = await request(app)
+        .post('/epcs/valid-epc-id/trace')
+        .send({ depth: 5 });
+      expect(response.status).toBe(200);
+      expect(response.body).toHaveProperty('trace');
+    });
+  });
+
+  describe('GET /epcs/:epc_id/trace/consumer', () => {
+    it('should return consumer trace results for a valid EPC', async () => {
+      const response = await request(app).get('/epcs/valid-epc-id/trace/consumer');
+      expect(response.status).toBe(200);
+      expect(response.body).toHaveProperty('trace');
+    });
+  });
+
+  describe('POST /epcs/:epc_id/trace/consumer', () => {
+    it('should return consumer trace results for a valid EPC', async () => {
+      const response = await request(app)
+        .post('/epcs/valid-epc-id/trace/consumer')
+        .send({ include_events: true });
+      expect(response.status).toBe(200);
+      expect(response.body).toHaveProperty('trace');
+    });
+  });
+});
