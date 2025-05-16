@@ -436,3 +436,13 @@ To create a new migration file, run:
 ```bash
 npx sequelize-cli migration:generate --name <migration-name>
 ```
+
+## Test Coverage
+
+To check the test coverage, run:
+
+```bash
+npm run coverage
+```
+
+The coverage report will be generated in the `coverage/` directory.

@@ -461,32 +461,49 @@ describe('Documents API', () => {
       const rateLimitedResponses = responses.filter((response) => response.status === 429);
 
       expect(rateLimitedResponses.length).toBeGreaterThan(0);
-      rateLimitedResponses.forEach((response) => {
-        expect(response.body).toHaveProperty('error', 'Too many requests');
-      });
-    });
-  });
+      To add a coverage tool like `nyc` to your project and track test coverage, follow these steps:
 
-  describe('Trace API', () => {
-    describe('GET /epcs/:epc_id/trace', () => {
-      it('should return trace results for a valid EPC', async () => {
-        const response = await request(app).get('/epcs/valid-epc-id/trace');
-        expect(response.status).toBe(200);
-        expect(response.body).toHaveProperty('trace');
-      });
+      1. **Install `nyc`**:
+        Run the following command to install `nyc` as a development dependency:
+        ```bash
+        npm install --save-dev nyc
+        ```
 
-      it('should return 400 for invalid depth parameter', async () => {
-        const response = await request(app).get('/epcs/valid-epc-id/trace').query({ depth: -1 });
-        expect(response.status).toBe(400);
-        expect(response.body).toHaveProperty('error', 'Depth must be a non-negative integer');
-      });
-    });
+      2. **Update `package.json`**:
+        Add a `nyc` configuration and update the `test` script to include `nyc`. Your `package.json` should look like this:
+        ```json
+        {
+          "scripts": {
+           "test": "nyc --reporter=text --reporter=html jest"
+          },
+          "nyc": {
+           "include": ["routes/**/*.ts", "test/**/*.ts"],
+           "exclude": ["node_modules", "dist"],
+           "extension": [".ts"],
+           "reporter": ["text", "html"],
+           "all": true,
+           "check-coverage": true,
+           "statements": 80,
+           "branches": 80,
+           "functions": 80,
+           "lines": 80
+          }
+        }
+        ```
 
-    describe('POST /epcs/:epc_id/trace', () => {
-      it('should return trace results for a valid EPC', async () => {
-        const response = await request(app)
-          .post('/epcs/valid-epc-id/trace')
-          .send({ depth: 5 });
+      3. **Run Tests with Coverage**:
+        Execute the following command to run your tests and generate a coverage report:
+        ```bash
+        npm test
+        ```
+
+      4. **View Coverage Report**:
+        After running the tests, `nyc` will generate a coverage report in the terminal and an HTML report in the `coverage` directory. Open `coverage/index.html` in your browser to view the detailed report.
+
+      5. **Ensure Coverage Thresholds**:
+        The `check-coverage` option in the `nyc` configuration ensures that your tests meet the specified coverage thresholds (80% in this example). If the thresholds are not met, the test run will fail.
+
+      This setup will help you track and enforce test coverage in your project.
         expect(response.status).toBe(200);
         expect(response.body).toHaveProperty('trace');
       });
