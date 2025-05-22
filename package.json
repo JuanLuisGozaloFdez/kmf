@@ -5,7 +5,7 @@
   "scripts": {
     "dev": "ts-node-dev --respawn src/index.ts",
     "build": "tsc",
-    "start": "node dist/index.js",
+    "start": "npm run build && node dist/index.js",
     "test:integration": "jest --config jest.integration.config.js",
     "test": "mocha",
     "coverage": "nyc npm test"

@@ -86,9 +86,15 @@ For production environments, use a secrets manager like AWS Secrets Manager, Azu
 
 If .env files are used, ensure they are encrypted and not included in version control.
 
-#### 8. Start the Application
+#### 8. Build and Start the Application
 
-Run the following command to start the application:
+Before starting the application, build the TypeScript source code:
+
+```bash
+npm run build
+```
+
+Then start the application:
 
 ```bash
 npm start
